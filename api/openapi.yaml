@@ -1,0 +1,205 @@
+openapi: 3.0.0
+info:
+  title: Information Exchange Service
+  description: API обмена информацией об угрозах. PUT полностью заменяет изменяемые поля.
+  version: 1.0.0
+security:
+  - bearerAuth: []
+paths:
+  /info:
+    post:
+      operationId: createThreat
+      summary: Создать угрозу с уникальным MD5
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreatCreateRequest'
+      responses:
+        '201':
+          description: Создано; Location содержит адрес записи
+          headers:
+            Location:
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThreatResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/TooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMedia'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /info/{md5}:
+    parameters:
+      - name: md5
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/MD5'}
+    get:
+      operationId: getInfoByMd5
+      summary: Получить угрозу по MD5
+      responses:
+        '200':
+          description: Информация об угрозе
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThreatResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      operationId: updateThreat
+      summary: Заменить информацию существующей угрозы
+      description: MD5 и created_at неизменяемы. Пропущенные необязательные поля сбрасываются к значениям по умолчанию.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ThreatUpdateRequest'}
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThreatResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '413': {$ref: '#/components/responses/TooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMedia'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /healthz:
+    get:
+      security: []
+      operationId: health
+      summary: Проверить доступность БД
+      responses:
+        '200':
+          description: БД доступна
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: {type: string, enum: [ok]}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    MD5:
+      type: string
+      pattern: '^[a-fA-F0-9]{32}$'
+      example: d41d8cd98f00b204e9800998ecf8427e
+    Severity:
+      type: string
+      enum: [unknown, low, medium, high, critical]
+      default: unknown
+    Category:
+      type: string
+      enum: [unknown, virus, trojan, ransomware, spyware, worm, adware, other]
+      default: unknown
+    ThreatCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [md5, name]
+      properties:
+        md5: {$ref: '#/components/schemas/MD5'}
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '^[^\x00]*$'
+          description: Название; после удаления внешних пробелов не должно быть пустым
+          example: Trojan.Win32.Generic
+        description:
+          type: string
+          maxLength: 4096
+          pattern: '^[^\x00]*$'
+          default: ''
+        severity: {$ref: '#/components/schemas/Severity'}
+        category: {$ref: '#/components/schemas/Category'}
+        first_seen:
+          type: string
+          format: date-time
+          description: Время обнаружения RFC3339, не в будущем; после перевода в UTC год 0000–9999; отсутствие означает неизвестное время
+    ThreatUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '^[^\x00]*$'
+        description:
+          type: string
+          maxLength: 4096
+          pattern: '^[^\x00]*$'
+          default: ''
+        severity: {$ref: '#/components/schemas/Severity'}
+        category: {$ref: '#/components/schemas/Category'}
+        first_seen:
+          type: string
+          format: date-time
+          description: Не в будущем; после перевода в UTC год 0000–9999; отсутствие сбрасывает известное время обнаружения
+    ThreatResponse:
+      type: object
+      additionalProperties: false
+      required: [md5, name, description, severity, category, created_at, updated_at]
+      properties:
+        md5: {$ref: '#/components/schemas/MD5'}
+        name: {type: string}
+        description: {type: string}
+        severity: {$ref: '#/components/schemas/Severity'}
+        category: {$ref: '#/components/schemas/Category'}
+        first_seen: {type: string, format: date-time}
+        created_at: {type: string, format: date-time, readOnly: true}
+        updated_at: {type: string, format: date-time, readOnly: true}
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message: {type: string}
+        details: {type: string}
+  responses:
+    BadRequest:
+      description: Ошибочный JSON, поля или MD5; тело не должно содержать null или повторные ключи
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Unauthorized:
+      description: Отсутствует или неверен Bearer-токен
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    NotFound:
+      description: Угроза не найдена
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Conflict:
+      description: MD5 уже существует
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    TooLarge:
+      description: Тело больше 16384 байт
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    UnsupportedMedia:
+      description: Требуется application/json без Content-Encoding; допустим charset=utf-8
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    RateLimited:
+      description: Превышен общий лимит запросов процесса
+      headers:
+        Retry-After:
+          schema: {type: integer}
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    InternalError:
+      description: Внутренняя ошибка; технические подробности скрыты
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Unavailable:
+      description: БД недоступна
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}

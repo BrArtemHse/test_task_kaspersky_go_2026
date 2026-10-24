@@ -1,0 +1,8 @@
+{
+  "md5": "d41d8cd98f00b204e9800998ecf8427e",
+  "name": "Trojan.Win32.Generic",
+  "description": "Пример записи для демонстрации API; хеш не указывает на реальную угрозу.",
+  "category": "trojan",
+  "severity": "high",
+  "first_seen": "2026-01-01T10:00:00Z"
+}

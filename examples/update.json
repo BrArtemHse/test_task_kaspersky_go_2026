@@ -1,0 +1,7 @@
+{
+  "name": "Trojan.Win32.Updated",
+  "description": "Уточнённое описание угрозы",
+  "category": "trojan",
+  "severity": "critical",
+  "first_seen": "2026-01-01T10:00:00Z"
+}
